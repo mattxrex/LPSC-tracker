@@ -1,0 +1,23 @@
+# LPSC Bulletin Monitor - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# PDF parsing - extracts text and tables from PDFs
+pdfplumber>=0.10.0
+
+# HTTP requests - downloading files from web
+requests>=2.31.0
+
+# HTML parsing - if we need to scrape the LPSC portal
+beautifulsoup4>=4.12.0
+
+# Claude API - for document summarization (Phase 2)
+anthropic>=0.18.0
+
+# RSS feed parsing - for automatic bulletin detection
+feedparser>=6.0.0
+
+# Environment variable loading - reads .env file for API keys
+python-dotenv>=1.0.0
+
+# Date handling
+python-dateutil>=2.8.0

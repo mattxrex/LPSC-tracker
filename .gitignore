@@ -1,0 +1,5 @@
+# Environment variables (API keys — never commit)
+.env
+
+# OS
+.DS_Store

@@ -1,0 +1,25 @@
+# Virtual environment
+venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Data files (PDFs, database, generated reports)
+data/bulletins/*.pdf
+data/documents/
+data/*.db
+data/*.html
+
+# IDE
+.idea/
+.vscode/
+
+# Environment variables (API keys — never commit)
+../.env
+
+# Launchd log
+data/launchd.log
+
+# OS
+.DS_Store
