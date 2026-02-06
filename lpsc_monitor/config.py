@@ -268,6 +268,10 @@ EMAIL_RECIPIENTS = [
     if addr.strip()
 ]
 
+# Admin email — receives system alerts (e.g., API credit exhaustion)
+# Falls back to EMAIL_SENDER if not set
+EMAIL_ADMIN = os.getenv("EMAIL_ADMIN", "") or EMAIL_SENDER
+
 # =============================================================================
 # LOGGING
 # =============================================================================

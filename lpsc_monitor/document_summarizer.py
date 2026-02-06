@@ -182,8 +182,21 @@ def summarize_document(pdf_path: str, doc_type: str, docket_number: str,
         return summary
 
     except anthropic.APIError as e:
+        if _is_credit_error(e):
+            raise  # Re-raise so the orchestrator can handle it
         print(f"    ERROR: Claude API error: {e}")
         return None
+
+
+def _is_credit_error(error: anthropic.APIError) -> bool:
+    """
+    Check if an API error indicates exhausted credits.
+
+    The Anthropic API returns errors with messages about credits or
+    billing when an account has no remaining balance.
+    """
+    error_msg = str(error).lower()
+    return any(term in error_msg for term in ['credit', 'billing', 'balance', 'insufficient'])
 
 
 def _summarize_large_document(pdf_path: str, doc_type: str,
@@ -256,6 +269,8 @@ def _summarize_large_document(pdf_path: str, doc_type: str,
             chunk_summaries.append(message.content[0].text)
             time.sleep(CLAUDE_DELAY_BETWEEN_CALLS)
         except anthropic.APIError as e:
+            if _is_credit_error(e):
+                raise  # Re-raise so the orchestrator can handle it
             print(f"    ERROR on chunk {i+1}: {e}")
             chunk_summaries.append(f"[Chunk {i+1} could not be summarized]")
 
@@ -276,6 +291,8 @@ def _summarize_large_document(pdf_path: str, doc_type: str,
         )
         return message.content[0].text
     except anthropic.APIError as e:
+        if _is_credit_error(e):
+            raise  # Re-raise so the orchestrator can handle it
         print(f"    ERROR combining summaries: {e}")
         # Return the chunk summaries as a fallback
         return combined
@@ -334,18 +351,43 @@ def summarize_documents_for_bulletin(bulletin_number: int = None):
     # Step 3: Summarize each document
     success_count = 0
     error_count = 0
+    credit_exhausted = False
 
     for i, doc in enumerate(documents):
         doc_name = Path(doc['pdf_path']).name
         print(f"[{i+1}/{len(documents)}] {doc['docket_number']} — {doc_name}")
         print(f"  Type: {doc['document_type'] or 'Unknown'}")
 
-        summary = summarize_document(
-            pdf_path=doc['pdf_path'],
-            doc_type=doc['document_type'] or 'Miscellaneous',
-            docket_number=doc['docket_number'],
-            docket_title=doc['docket_title'] or '',
-        )
+        try:
+            summary = summarize_document(
+                pdf_path=doc['pdf_path'],
+                doc_type=doc['document_type'] or 'Miscellaneous',
+                docket_number=doc['docket_number'],
+                docket_title=doc['docket_title'] or '',
+            )
+        except anthropic.APIError as e:
+            if _is_credit_error(e):
+                credit_exhausted = True
+                remaining = len(documents) - i
+                print(f"\n  API CREDIT EXHAUSTION DETECTED")
+                print(f"  {remaining} document(s) could not be summarized.")
+
+                # Send alert email to admin
+                from email_sender import send_admin_alert
+                send_admin_alert(
+                    subject="Claude API Credits Exhausted",
+                    message=(
+                        f"The LPSC Bulletin Monitor ran out of Claude API credits "
+                        f"while summarizing documents for Bulletin #{bulletin_number}.\n\n"
+                        f"Summarized: {success_count} document(s)\n"
+                        f"Remaining: {remaining} document(s) not summarized\n\n"
+                        f"To resume, add credits at https://console.anthropic.com/ "
+                        f"and re-run:\n"
+                        f"  python main.py summarize {bulletin_number}"
+                    ),
+                )
+                break
+            raise
 
         if summary:
             # Step 4: Store the summary

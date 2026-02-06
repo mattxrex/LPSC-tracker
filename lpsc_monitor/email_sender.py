@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 
 from config import (
     SMTP_SERVER, SMTP_PORT,
-    EMAIL_SENDER, EMAIL_APP_PASSWORD, EMAIL_RECIPIENTS,
+    EMAIL_SENDER, EMAIL_APP_PASSWORD, EMAIL_RECIPIENTS, EMAIL_ADMIN,
     log
 )
 
@@ -85,4 +85,55 @@ def send_report_email(html_content: str, bulletin_number: int,
         return False
     except Exception as e:
         print(f"ERROR: Unexpected error sending email: {e}")
+        return False
+
+
+def send_admin_alert(subject: str, message: str) -> bool:
+    """
+    Send an alert email to the admin only (not all recipients).
+
+    Used for system warnings like API credit exhaustion. Sent to
+    EMAIL_ADMIN (falls back to EMAIL_SENDER if not set).
+
+    Args:
+        subject: Email subject line
+        message: Plain-text message body
+
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    if not EMAIL_SENDER or not EMAIL_APP_PASSWORD or not EMAIL_ADMIN:
+        print("WARNING: Cannot send admin alert — email not configured")
+        return False
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = f"[LPSC Monitor Alert] {subject}"
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_ADMIN
+
+    # Simple HTML body with the alert message
+    html = f"""<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #c53030; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0;">
+    <h2 style="margin: 0; font-size: 18px;">LPSC Monitor Alert</h2>
+  </div>
+  <div style="padding: 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
+    <p style="font-size: 14px; color: #333; line-height: 1.6; white-space: pre-line;">{message}</p>
+  </div>
+  <p style="text-align: center; font-size: 12px; color: #a0aec0; margin-top: 16px;">
+    Sent by LPSC Bulletin Monitor</p>
+</div>"""
+
+    msg.attach(MIMEText(html, 'html'))
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+            server.sendmail(EMAIL_SENDER, [EMAIL_ADMIN], msg.as_string())
+
+        print(f"Admin alert sent to: {EMAIL_ADMIN}")
+        return True
+
+    except Exception as e:
+        print(f"WARNING: Failed to send admin alert: {e}")
         return False
