@@ -4,12 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LPSC Bulletin Monitor - A Python tool to monitor Louisiana Public Service Commission (LPSC) Official Bulletins for electric utility-related regulatory content.
+Two related tools for monitoring Louisiana Public Service Commission (LPSC) regulatory activity:
+
+1. **lpsc_monitor** — Single-user bulletin monitor with AI summaries. Parses bulletins, fetches docket documents, summarizes with Claude, sends detailed email reports.
+2. **lpsc_alerts** — Multi-user alert system. Each user has their own keywords and tracked dockets. Two monitoring paths: keyword discovery (from bulletins) and direct docket tracking (portal API polling). No AI summaries — just parsing, matching, and links.
 
 ## Commands
 
 ```bash
-# Activate virtual environment (required before running)
+# Activate virtual environment (required before running — shared by both tools)
 source lpsc_monitor/venv/bin/activate
 
 # Check RSS feed for new bulletins and process any found (one-shot)
@@ -46,7 +49,26 @@ python lpsc_monitor/main.py cleanup [BULLETIN_NUMBER]
 python lpsc_monitor/main.py setup-schedule
 ```
 
+### lpsc_alerts Commands
+
+```bash
+# User management
+python lpsc_alerts/main.py add-user EMAIL --keywords "solar,Entergy" --exclude "gas" --dockets "U-36625"
+python lpsc_alerts/main.py remove-user EMAIL
+python lpsc_alerts/main.py list-users
+python lpsc_alerts/main.py update-user EMAIL --add-keywords "wind" --remove-keywords "solar" --add-dockets "U-37800"
+
+# Run monitoring
+python lpsc_alerts/main.py check       # One-shot: check bulletins + tracked dockets, send alerts
+python lpsc_alerts/main.py monitor     # Continuous: run check every 24 hours
+
+# Testing
+python lpsc_alerts/main.py test-alert EMAIL   # Send test email to verify setup
+```
+
 ## Architecture
+
+### lpsc_monitor
 
 ```
 lpsc_monitor/
@@ -68,6 +90,29 @@ lpsc_monitor/
     ├── documents/       # Downloaded docket documents (cleaned up after processing)
     └── lpsc_monitor.db  # SQLite database
 ```
+
+### lpsc_alerts
+
+```
+lpsc_alerts/
+├── main.py              # CLI: add-user, remove-user, list-users, update-user, check, monitor, test-alert
+├── config.py            # Portal URLs, paths, email settings from .env
+├── database.py          # SQLite: users, tracked_dockets, sent_alerts, bulletins tables
+├── user_manager.py      # User CRUD (add, remove, update, list)
+├── keyword_matcher.py   # Simple include/exclude matching (no scoring)
+├── bulletin_monitor.py  # Path 1: RSS → download → parse → match keywords per user
+├── docket_monitor.py    # Path 2: Poll portal API for new docs on tracked dockets
+├── portal_api.py        # LPSC Document Search API wrapper (session + search)
+├── alert_generator.py   # Build concise HTML email per user
+├── email_sender.py      # Gmail SMTP (one recipient at a time)
+├── bulletin_parser.py   # Copied from lpsc_monitor (PDF parsing, DocketEntry)
+├── bulletin_downloader.py # Copied from lpsc_monitor (PDF download)
+└── data/
+    ├── bulletins/       # Downloaded bulletin PDFs (temporary)
+    └── lpsc_alerts.db   # SQLite database
+```
+
+**lpsc_alerts check pipeline:** (1) RSS → new bulletins → parse → match each user's keywords → queue alerts. (2) Poll portal for new docs on tracked dockets → queue alerts. (3) Group alerts by user → send one email per user → record in sent_alerts to prevent duplicates.
 
 **Full automated pipeline (`check` command):** RSS feed → find new bulletins → download PDF → extract text → detect subparts (A-J) → parse docket entries → score → store → fetch docket documents → summarize with Claude → clean up PDFs → send HTML email report → update launchd schedule for next bulletin date
 

@@ -27,7 +27,7 @@ def _docket_search_link(docket_number: str) -> str:
     doesn't support direct docket URL linking, but this takes you to
     the search page where you can look it up.
     """
-    return f"{LPSC_BASE_URL}/portal/PSC/DocumentSearch"
+    return f"{LPSC_BASE_URL}/portal/PSC"
 
 
 # =============================================================================

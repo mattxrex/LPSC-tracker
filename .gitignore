@@ -1,5 +1,16 @@
-# Environment variables (API keys — never commit)
+# Environment variables (API keys, email credentials — never commit)
 .env
+
+# SQLite databases (contain user data and processing history)
+*.db
+
+# Downloaded PDFs (temporary, cleaned up after processing)
+lpsc_monitor/data/bulletins/
+lpsc_monitor/data/documents/
+lpsc_alerts/data/bulletins/
+
+# Virtual environment
+lpsc_monitor/venv/
 
 # OS
 .DS_Store
