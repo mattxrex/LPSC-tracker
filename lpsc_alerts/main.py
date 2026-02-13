@@ -16,6 +16,7 @@ Usage:
                                      [--add-dockets D] [--remove-dockets D]
     python main.py check          # One-shot: bulletins + dockets → alerts
     python main.py monitor        # Continuous: check every 24 hours
+    python main.py setup-schedule # Install macOS launchd job for daily checks at 6 AM
     python main.py test-alert EMAIL
 """
 
@@ -39,6 +40,7 @@ from bulletin_downloader import download_bulletin_by_url
 from bulletin_parser import parse_bulletin
 from keyword_matcher import match_keywords
 from config import MONITOR_INTERVAL, DOCKET_DOCUMENT_LOOKBACK_DAYS, log
+from schedule import setup_schedule
 
 
 def send_alerts(all_alerts):
@@ -387,6 +389,9 @@ def main():
     # monitor
     subparsers.add_parser('monitor', help='Continuous: check every 24 hours')
 
+    # setup-schedule
+    subparsers.add_parser('setup-schedule', help='Install macOS launchd job for daily checks')
+
     # test-alert
     p_test = subparsers.add_parser('test-alert', help='Send a test email')
     p_test.add_argument('email', help='Email to send test to')
@@ -442,6 +447,9 @@ def main():
 
     elif args.command == 'monitor':
         cmd_monitor()
+
+    elif args.command == 'setup-schedule':
+        setup_schedule()
 
     elif args.command == 'test-alert':
         cmd_test_alert(args.email)

@@ -143,9 +143,14 @@ python main.py monitor
 
 # Test that email delivery works
 python main.py test-alert your.email@example.com
+
+# Automatic scheduling (macOS only) — runs check daily at 6 AM
+python main.py setup-schedule
 ```
 
 The `check` command runs both monitoring paths, groups all alerts by user, sends one email per user, and records what was sent so the same item is never alerted twice.
+
+The `setup-schedule` command installs a macOS launchd job that runs `check` automatically every day at 6 AM. Unlike lpsc_monitor (which dynamically schedules based on the next bulletin date), lpsc_alerts uses a fixed daily schedule because it also monitors tracked dockets for new filings between bulletins.
 
 ### Architecture
 
@@ -163,6 +168,7 @@ lpsc_alerts/
 ├── email_sender.py      # Gmail SMTP delivery
 ├── bulletin_parser.py   # PDF parsing (shared with lpsc_monitor)
 ├── bulletin_downloader.py # PDF download (shared with lpsc_monitor)
+├── schedule.py          # macOS launchd scheduling (daily at 6 AM)
 └── data/
     └── lpsc_alerts.db   # SQLite database (created automatically, gitignored)
 ```

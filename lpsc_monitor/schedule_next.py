@@ -3,7 +3,7 @@ Launchd Schedule Updater for LPSC Bulletin Monitor
 
 After each successful bulletin check, this script reads the next bulletin
 date from the database and updates the macOS launchd plist to run on that
-date (at 6 PM, giving the LPSC time to post the bulletin).
+date (at 6 AM).
 
 How macOS launchd works:
 - A .plist file in ~/Library/LaunchAgents/ tells macOS when to run a script
@@ -60,7 +60,7 @@ def update_schedule():
         return
 
     print(f"Next bulletin date: {next_date_str}")
-    print(f"Scheduling check for: {next_date.strftime('%A, %B %d, %Y')} at 6:00 PM")
+    print(f"Scheduling check for: {next_date.strftime('%A, %B %d, %Y')} at 6:00 AM")
 
     if not PLIST_INSTALL_PATH.exists():
         print(f"NOTE: Launchd plist not installed. Run 'python main.py setup-schedule' first.")
@@ -74,7 +74,7 @@ def update_schedule():
     plist['StartCalendarInterval'] = {
         'Month': next_date.month,
         'Day': next_date.day,
-        'Hour': 18,
+        'Hour': 6,
         'Minute': 0,
     }
 
@@ -150,7 +150,7 @@ def create_plist():
             # Default: run every other Friday at 6 PM
             # This gets updated after each successful check
             'Weekday': 5,  # Friday
-            'Hour': 18,
+            'Hour': 6,
             'Minute': 0,
         },
         'StandardOutPath': log_path,
@@ -194,11 +194,11 @@ def setup_schedule():
     all_bulletins = db.get_all_bulletins()
     if all_bulletins and all_bulletins[0].get('next_bulletin_date'):
         next_date = all_bulletins[0]['next_bulletin_date']
-        print(f"\nNext check scheduled for: {next_date} at 6:00 PM")
+        print(f"\nNext check scheduled for: {next_date} at 6:00 AM")
         update_schedule()
     else:
         print("\nNo next bulletin date in database yet.")
-        print("Default: will check every Friday at 6 PM.")
+        print("Default: will check every Friday at 6 AM.")
         print("The schedule will auto-update after the first successful check.")
 
     print("\nTo uninstall: launchctl unload ~/Library/LaunchAgents/com.lpsc-monitor.check.plist")
