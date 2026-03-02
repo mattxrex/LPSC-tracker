@@ -1,4 +1,4 @@
-# LPSC Track
+# LPSC Tracker
 
 Python tools for monitoring [Louisiana Public Service Commission (LPSC)](https://lpsc.louisiana.gov/) regulatory activity. The LPSC publishes official bulletins every two weeks listing docket activity across Louisiana utilities — dense PDFs covering transportation, telecom, water, gas, and electric. These tools help you stay on top of what matters.
 
