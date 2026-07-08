@@ -17,6 +17,9 @@ lpsc_monitor/data/last_success.txt
 lpsc_alerts/data/last_success.txt
 lpsc_monitor/data/*.html
 
+# Personal custom keywords (local config, like .env)
+lpsc_monitor/data/custom_keywords.json
+
 # Virtual environment
 lpsc_monitor/venv/
 

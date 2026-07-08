@@ -158,8 +158,7 @@ MEDIUM_PRIORITY_KEYWORDS = [
 # (helps filter out gas, water, and non-fiber telecom matters)
 EXCLUSION_KEYWORDS = [
     # Gas and water
-    "natural gas only",
-    "gas pipeline",
+    "pipeline",
     "water utility",
     "sewer",
     "wastewater",
@@ -184,6 +183,48 @@ EXCLUSION_PENALTY = -15
 
 # Minimum score to be considered "relevant"
 RELEVANCE_THRESHOLD = 5
+
+# =============================================================================
+# USER-ADDED CUSTOM KEYWORDS
+# =============================================================================
+# Keywords added via `python main.py add-keyword` are stored in a separate JSON
+# file (kept out of this source file on purpose) and merged into the lists above
+# at startup. This keeps personal additions separate from the built-in defaults.
+
+import json as _json
+
+CUSTOM_KEYWORDS_FILE = DATA_DIR / "custom_keywords.json"
+
+# Maps a tier name to the keyword list it feeds into and the points it carries.
+KEYWORD_TIERS = {
+    "high": (HIGH_PRIORITY_KEYWORDS, HIGH_PRIORITY_SCORE),
+    "medium": (MEDIUM_PRIORITY_KEYWORDS, MEDIUM_PRIORITY_SCORE),
+    "exclude": (EXCLUSION_KEYWORDS, EXCLUSION_PENALTY),
+}
+
+
+def _load_custom_keywords():
+    """Return {'high': [...], 'medium': [...], 'exclude': [...]} from the JSON file."""
+    empty = {tier: [] for tier in KEYWORD_TIERS}
+    try:
+        with open(CUSTOM_KEYWORDS_FILE) as f:
+            data = _json.load(f)
+    except (FileNotFoundError, ValueError):
+        return empty
+    return {tier: list(data.get(tier, [])) for tier in KEYWORD_TIERS}
+
+
+# The user's additions, kept separate so we can show which keywords are custom.
+CUSTOM_KEYWORDS = _load_custom_keywords()
+
+# Fold the custom keywords into the built-in lists (case-insensitive de-dupe),
+# so the scoring in filter.py picks them up with no changes needed there.
+for _tier, (_target_list, _pts) in KEYWORD_TIERS.items():
+    _existing = {k.lower() for k in _target_list}
+    for _term in CUSTOM_KEYWORDS[_tier]:
+        if _term.lower() not in _existing:
+            _target_list.append(_term)
+            _existing.add(_term.lower())
 
 # =============================================================================
 # BULLETIN SUBPART SECTIONS (Part II - Utilities)

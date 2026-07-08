@@ -298,6 +298,18 @@ Usage:
     python main.py stats
         Show database statistics.
 
+    python main.py keywords
+        Show the keyword lists used for relevance scoring, with their
+        point weights. Custom (user-added) keywords are marked.
+
+    python main.py add-keyword "<term>" <high|medium|exclude>
+        Add a keyword to a weight tier (high +10, medium +3, exclude -15).
+        Example: python main.py add-keyword "data center" high
+
+    python main.py remove-keyword "<term>"
+        Remove a keyword you previously added (built-ins can't be removed here).
+        Example: python main.py remove-keyword "data center"
+
     python main.py test <pdf_path>
         Test parsing a local PDF file without saving to database.
         Example: python main.py test data/bulletins/bulletin_1352.pdf
@@ -325,7 +337,7 @@ Usage:
 
     python main.py setup-schedule
         Install a macOS launchd job to run checks automatically
-        on the next bulletin publication date.
+        every ~6 hours (plus on login and on wake from sleep).
 
     python main.py help
         Show this help message.
@@ -463,6 +475,24 @@ def main():
 
     elif command == "stats":
         show_statistics()
+
+    elif command == "keywords":
+        from keyword_manager import print_keywords
+        print_keywords()
+
+    elif command == "add-keyword":
+        if len(sys.argv) < 4:
+            print("ERROR: usage: python main.py add-keyword \"<term>\" <high|medium|exclude>")
+            sys.exit(1)
+        from keyword_manager import add_keyword
+        add_keyword(sys.argv[2], sys.argv[3])
+
+    elif command == "remove-keyword":
+        if len(sys.argv) < 3:
+            print("ERROR: usage: python main.py remove-keyword \"<term>\"")
+            sys.exit(1)
+        from keyword_manager import remove_keyword
+        remove_keyword(sys.argv[2])
 
     elif command == "fetch-docs":
         from document_fetcher import fetch_documents_for_bulletin
