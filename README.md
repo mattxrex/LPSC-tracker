@@ -21,17 +21,22 @@ This repo contains two tools:
 git clone https://github.com/mattxrex/LPSC-tracker.git
 cd LPSC-tracker
 
-# Create and activate virtual environment
+# Each tool has its own independent virtual environment.
+
+# lpsc_monitor
 python3 -m venv lpsc_monitor/venv
-source lpsc_monitor/venv/bin/activate
+lpsc_monitor/venv/bin/pip install -r lpsc_monitor/requirements.txt
 
-# Install dependencies
-pip install -r lpsc_monitor/requirements.txt
+# lpsc_alerts
+python3 -m venv lpsc_alerts/venv
+lpsc_alerts/venv/bin/pip install -r lpsc_alerts/requirements.txt
 
-# Set up environment variables
+# Set up environment variables (shared by both tools, at the project root)
 cp .env.example .env
 # Edit .env with your email settings
 ```
+
+To run a tool, activate its own environment first, e.g. `source lpsc_alerts/venv/bin/activate` for lpsc_alerts.
 
 ### Configuration
 
@@ -71,11 +76,11 @@ Both paths feed into **one email per user** — no duplicate emails, no noise.
 
 ### Managing Users
 
-All user management is done through the command line. Always activate the virtual environment first:
+All user management is done through the command line. Always activate the tool's own virtual environment first:
 
 ```bash
-source lpsc_monitor/venv/bin/activate
 cd lpsc_alerts
+source venv/bin/activate
 ```
 
 **Add a user** with keywords and/or tracked dockets:
@@ -173,8 +178,8 @@ lpsc_alerts/
 ├── portal_api.py        # LPSC Document Search API wrapper
 ├── alert_generator.py   # HTML email builder
 ├── email_sender.py      # Gmail SMTP delivery
-├── bulletin_parser.py   # PDF parsing (shared with lpsc_monitor)
-├── bulletin_downloader.py # PDF download (shared with lpsc_monitor)
+├── bulletin_parser.py   # PDF parsing (own copy; mirrors lpsc_monitor's)
+├── bulletin_downloader.py # PDF download (own copy; mirrors lpsc_monitor's)
 ├── schedule.py          # macOS launchd scheduling (every ~6 hours + on login/wake)
 ├── heartbeat.py         # Records successful checks; emails admin on failure/staleness
 └── data/
@@ -237,13 +242,14 @@ A docket is marked **relevant** if its score is 5 or higher. Keywords, scores, a
 
 ## Dependencies
 
-All listed in `lpsc_monitor/requirements.txt`:
+Each tool has its own `requirements.txt` and its own virtual environment, so they
+can be installed and run independently:
 
-- **pdfplumber** — PDF text extraction
-- **requests** — HTTP downloads
-- **beautifulsoup4** — HTML parsing for portal scraping
-- **feedparser** — RSS feed parsing
-- **python-dotenv** — Environment variable loading
+- **pdfplumber** — PDF text extraction (both)
+- **requests** — HTTP downloads (both)
+- **beautifulsoup4** — HTML parsing for portal scraping (both)
+- **feedparser** — RSS feed parsing (both)
+- **python-dotenv** — Environment variable loading (both)
 - **anthropic** — Claude API (lpsc_monitor only)
 
 ## License

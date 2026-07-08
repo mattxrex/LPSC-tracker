@@ -12,8 +12,9 @@ Two related tools for monitoring Louisiana Public Service Commission (LPSC) regu
 ## Commands
 
 ```bash
-# Activate virtual environment (required before running — shared by both tools)
-source lpsc_monitor/venv/bin/activate
+# Each tool has its own venv. Activate the one for the tool you're running:
+source lpsc_monitor/venv/bin/activate   # for lpsc_monitor commands
+# source lpsc_alerts/venv/bin/activate  # for lpsc_alerts commands
 
 # Check RSS feed for new bulletins and process any found (one-shot)
 python lpsc_monitor/main.py check

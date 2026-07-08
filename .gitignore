@@ -20,8 +20,9 @@ lpsc_monitor/data/*.html
 # Personal custom keywords (local config, like .env)
 lpsc_monitor/data/custom_keywords.json
 
-# Virtual environment
+# Virtual environments (each tool has its own)
 lpsc_monitor/venv/
+lpsc_alerts/venv/
 
 # OS
 .DS_Store

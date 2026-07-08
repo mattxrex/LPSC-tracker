@@ -38,10 +38,9 @@ def create_plist():
     Create the launchd plist dictionary.
 
     Generates a plist that runs `python main.py check` every few hours
-    using the shared venv Python (located in lpsc_monitor/venv/).
+    using this tool's own venv Python.
     """
-    # Shared venv lives in lpsc_monitor/
-    venv_python = Path(__file__).parent.parent / "lpsc_monitor" / "venv" / "bin" / "python"
+    venv_python = Path(__file__).parent / "venv" / "bin" / "python"
     main_script = Path(__file__).parent / "main.py"
     working_dir = str(Path(__file__).parent)
     log_path = str(Path(__file__).parent / "data" / "launchd.log")
