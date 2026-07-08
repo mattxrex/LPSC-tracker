@@ -10,13 +10,14 @@ Both paths feed into one concise email per user.
 Usage:
     python main.py add-user EMAIL [--keywords K] [--exclude K] [--dockets D]
     python main.py remove-user EMAIL
+    python main.py change-email OLD_EMAIL NEW_EMAIL
     python main.py list-users
     python main.py update-user EMAIL [--add-keywords K] [--remove-keywords K]
                                      [--add-exclude K] [--remove-exclude K]
                                      [--add-dockets D] [--remove-dockets D]
     python main.py check          # One-shot: bulletins + dockets → alerts
     python main.py monitor        # Continuous: check every 24 hours
-    python main.py setup-schedule # Install macOS launchd job for daily checks at 6 AM
+    python main.py setup-schedule # Install macOS launchd job (runs every ~6 hours)
     python main.py test-alert EMAIL
 """
 
@@ -379,6 +380,12 @@ def main():
     # list-users
     subparsers.add_parser('list-users', help='List all users')
 
+    # change-email
+    p_ce = subparsers.add_parser('change-email',
+                                 help="Change a user's email (keeps their dockets/keywords)")
+    p_ce.add_argument('old_email', help='Current email address')
+    p_ce.add_argument('new_email', help='New email address')
+
     # update-user
     p_up = subparsers.add_parser('update-user', help='Update a user')
     p_up.add_argument('email', help='User email address')
@@ -435,6 +442,9 @@ def main():
 
     elif args.command == 'list-users':
         user_manager.list_users()
+
+    elif args.command == 'change-email':
+        user_manager.change_email(args.old_email, args.new_email)
 
     elif args.command == 'update-user':
         user_manager.update_user(

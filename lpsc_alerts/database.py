@@ -115,6 +115,30 @@ def get_user_by_email(email: str) -> Optional[Dict]:
     return dict(row) if row else None
 
 
+def update_user_email(user_id: int, new_email: str) -> bool:
+    """
+    Change a user's email address, keeping their id (and therefore all their
+    tracked dockets, keywords, and sent-alert history) intact.
+
+    Returns True on success, False if the new email is already taken.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "UPDATE users SET email = ? WHERE id = ?", (new_email, user_id)
+        )
+        conn.commit()
+        updated = cursor.rowcount > 0
+        if updated:
+            log(f"Changed email for user id={user_id} to {new_email}")
+        return updated
+    except sqlite3.IntegrityError:
+        log(f"Cannot change email: {new_email} already exists")
+        return False
+    finally:
+        conn.close()
+
+
 def get_user_by_id(user_id: int) -> Optional[Dict]:
     """Get a user by ID."""
     conn = get_connection()

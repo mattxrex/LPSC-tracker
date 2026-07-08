@@ -15,6 +15,40 @@ def _validate_email(email: str) -> bool:
     return bool(re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email))
 
 
+def change_email(old_email: str, new_email: str) -> bool:
+    """
+    Change a user's email address, preserving all their data.
+
+    Dockets, keywords, and sent-alert history are linked to the user's internal
+    id (not the email string), so they are unaffected by the change.
+    """
+    old_email = (old_email or "").strip()
+    new_email = (new_email or "").strip()
+
+    if not _validate_email(new_email):
+        print(f"ERROR: '{new_email}' is not a valid email address.")
+        return False
+    if old_email.lower() == new_email.lower():
+        print("ERROR: new email is the same as the current one — no change.")
+        return False
+
+    user = db.get_user_by_email(old_email)
+    if not user:
+        print(f"User not found: {old_email}")
+        return False
+    if db.get_user_by_email(new_email):
+        print(f"ERROR: {new_email} is already a user. Choose a different address.")
+        return False
+
+    if db.update_user_email(user['id'], new_email):
+        print(f"Changed email: {old_email} -> {new_email}")
+        print("Tracked dockets, keywords, and alert history are unchanged.")
+        return True
+
+    print(f"ERROR: could not change email (is {new_email} already taken?).")
+    return False
+
+
 def _validate_docket(docket: str) -> bool:
     """Check that a docket number matches known LPSC formats.
 
