@@ -38,7 +38,12 @@ def fetch_rss_feed() -> List[Dict]:
     log(f"Fetching RSS feed: {LPSC_RSS_URL}")
 
     try:
-        feed = feedparser.parse(LPSC_RSS_URL)
+        # Fetch with an explicit timeout, then hand the bytes to feedparser.
+        # feedparser.parse(url) does its own fetch with NO timeout, which once
+        # let a single stalled connection freeze the scheduled job for months.
+        resp = requests.get(LPSC_RSS_URL, timeout=30)
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.content)
     except Exception as e:
         print(f"ERROR: Failed to fetch RSS feed: {e}")
         return []

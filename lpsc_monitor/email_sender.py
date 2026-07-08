@@ -67,7 +67,7 @@ def send_report_email(html_content: str, bulletin_number: int,
     # Send via Gmail SMTP
     try:
         log(f"Connecting to {SMTP_SERVER}:{SMTP_PORT}...")
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
             server.starttls()
             server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
             server.sendmail(EMAIL_SENDER, EMAIL_RECIPIENTS, msg.as_string())
@@ -126,7 +126,7 @@ def send_admin_alert(subject: str, message: str) -> bool:
     msg.attach(MIMEText(html, 'html'))
 
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
             server.starttls()
             server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
             server.sendmail(EMAIL_SENDER, [EMAIL_ADMIN], msg.as_string())

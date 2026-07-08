@@ -342,9 +342,21 @@ def main():
 
     if command == "check":
         from rss_monitor import check_for_new_bulletins
+        from pathlib import Path
+        from datetime import datetime as _dt
 
         # Check for --no-email flag (useful during testing)
         no_email = '--no-email' in sys.argv
+
+        # Append a timestamped entry to check_history.log so there's always a record
+        _history_log = Path(__file__).parent / "data" / "check_history.log"
+        _history_log.parent.mkdir(parents=True, exist_ok=True)
+        with open(_history_log, "a") as _f:
+            _f.write(f"\n=== Check started: {_dt.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+
+        # Heartbeat: warn the admin if it's been too long since a good check
+        import heartbeat
+        heartbeat.warn_if_stale()
 
         print("\nChecking LPSC RSS feed for new bulletins...")
         summary = check_for_new_bulletins()
@@ -403,10 +415,16 @@ def main():
             if last_bulletin and last_bulletin.get('next_bulletin_date'):
                 print(f"\nNext bulletin expected: {last_bulletin['next_bulletin_date']}")
 
-                # Update launchd schedule for the next run
-                from schedule_next import update_schedule
-                print("\n--- Updating schedule ---")
-                update_schedule()
+        # Note: the launchd schedule is a fixed interval now (see schedule_next.py),
+        # so there is nothing to re-arm here — the job keeps firing on its own.
+
+        # Append completion status to check history log
+        _status = "errors" if summary['errors'] else ("new bulletins: " + ", ".join(f"#{n}" for n in summary['processed']) if summary['processed'] else "no new bulletins")
+        with open(_history_log, "a") as _f:
+            _f.write(f"    Result: {_status}\n")
+
+        # Heartbeat: the check completed, so record this as a successful run.
+        heartbeat.record_success()
 
         sys.exit(1 if summary['errors'] else 0)
 
@@ -510,4 +528,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as _e:
+        # If a scheduled check crashes, email the admin instead of failing silently.
+        if len(sys.argv) > 1 and sys.argv[1].lower() == "check":
+            import heartbeat
+            heartbeat.notify_error("monitor check", _e)
+        raise

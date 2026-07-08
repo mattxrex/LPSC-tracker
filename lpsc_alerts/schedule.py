@@ -1,14 +1,19 @@
 """
 Launchd Schedule for LPSC Alerts
 
-Installs a macOS launchd plist that runs `python main.py check` daily at 6 AM.
-Unlike lpsc_monitor (which dynamically updates its schedule based on the next
-bulletin date), lpsc_alerts uses a fixed daily schedule because it monitors
-both bulletins and tracked dockets.
+Installs a macOS launchd plist that runs `python main.py check` periodically.
+
+Why an interval instead of a fixed clock time: a laptop is often asleep or off
+at any given minute, and launchd does NOT replay a fixed-time run that was
+missed while the machine was off. Running on an interval (plus once at load and
+automatically on wake from sleep) means the check runs whenever the Mac is
+actually on, without depending on it being awake at one specific moment.
 
 How macOS launchd works:
 - A .plist file in ~/Library/LaunchAgents/ tells macOS when to run a script
-- The StartCalendarInterval key sets the day/time to run
+- StartInterval runs the job every N seconds the machine is powered on, and
+  launchd runs a missed interval as soon as the Mac wakes from sleep
+- RunAtLoad also runs it once right after login/boot (and on install)
 - After installing the plist, we load it so macOS picks up the schedule
 """
 
@@ -21,12 +26,18 @@ from pathlib import Path
 PLIST_NAME = "com.lpsc-alerts.check.plist"
 PLIST_INSTALL_PATH = Path.home() / "Library" / "LaunchAgents" / PLIST_NAME
 
+# How often to run the check while the Mac is powered on (seconds).
+# The check is cheap (fetch RSS, poll tracked dockets, skip anything already
+# seen), so running a few times a day costs almost nothing and greatly raises
+# the odds of catching a bulletin the same day it posts.
+CHECK_INTERVAL_SECONDS = 6 * 60 * 60  # every 6 hours
+
 
 def create_plist():
     """
     Create the launchd plist dictionary.
 
-    Generates a plist that runs `python main.py check` daily at 6 AM
+    Generates a plist that runs `python main.py check` every few hours
     using the shared venv Python (located in lpsc_monitor/venv/).
     """
     # Shared venv lives in lpsc_monitor/
@@ -43,10 +54,8 @@ def create_plist():
             'check',
         ],
         'WorkingDirectory': working_dir,
-        'StartCalendarInterval': {
-            'Hour': 6,
-            'Minute': 0,
-        },
+        'StartInterval': CHECK_INTERVAL_SECONDS,
+        'RunAtLoad': True,
         'StandardOutPath': log_path,
         'StandardErrorPath': log_path,
         'EnvironmentVariables': {
@@ -81,8 +90,9 @@ def setup_schedule():
     # Load it
     _reload_launchd()
 
+    hours = CHECK_INTERVAL_SECONDS // 3600
     print(f"\nScheduled check is now active.")
-    print(f"Schedule: Daily at 6:00 AM")
+    print(f"Schedule: every {hours} hours while the Mac is on (plus on login/wake)")
     print(f"Log output: {plist['StandardOutPath']}")
     print(f"\nTo uninstall: launchctl unload ~/Library/LaunchAgents/{PLIST_NAME}")
 

@@ -280,6 +280,9 @@ def send_user_notification(email: str, is_new_user: bool):
 
 def cmd_check():
     """Run one check cycle: bulletins + tracked dockets → send alerts."""
+    import heartbeat
+    heartbeat.warn_if_stale()
+
     db.init_database()
 
     print("=" * 60)
@@ -306,6 +309,9 @@ def cmd_check():
     print(f"Docket updates:   {len(docket_alerts)}")
     print(f"Emails sent:      {emails_sent}")
     print(f"{'='*60}")
+
+    # Heartbeat: the check completed, so record this as a successful run.
+    heartbeat.record_success()
 
 
 def cmd_monitor():
@@ -456,4 +462,13 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as _e:
+        # If a scheduled check crashes, email the admin instead of failing silently.
+        if len(sys.argv) > 1 and sys.argv[1].lower() == 'check':
+            import heartbeat
+            heartbeat.notify_error("alerts check", _e)
+        raise

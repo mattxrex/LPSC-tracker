@@ -68,6 +68,8 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD", "")
+# Where admin/heartbeat alerts go; falls back to the sender address.
+EMAIL_ADMIN = os.getenv("EMAIL_ADMIN", "") or EMAIL_SENDER
 
 # =============================================================================
 # LOGGING
