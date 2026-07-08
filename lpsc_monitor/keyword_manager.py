@@ -49,12 +49,6 @@ def _save(custom):
         json.dump(custom, f, indent=2)
 
 
-def _builtin_only(tier):
-    """Built-in keywords for a tier (the merged list minus the user's custom ones)."""
-    custom_lower = {k.lower() for k in config.CUSTOM_KEYWORDS[tier]}
-    return [k for k in config.KEYWORD_TIERS[tier][0] if k.lower() not in custom_lower]
-
-
 def _find_existing_tier(term):
     """Return the tier a term is already in (built-in or custom), or None."""
     term_l = term.lower()
@@ -65,24 +59,15 @@ def _find_existing_tier(term):
 
 
 def print_keywords():
-    """Print all keyword tiers with their weights; mark user-added ones."""
+    """Print all keyword tiers with their weights."""
     print("\nLPSC Monitor — Keywords")
     print("=" * 60)
     for tier in ("high", "medium", "exclude"):
-        pts = _points(tier)
-        builtin = _builtin_only(tier)
-        custom = config.CUSTOM_KEYWORDS[tier]
-        print(f"\n{TIER_LABELS[tier]} ({pts:+d} points each) — "
-              f"{len(builtin) + len(custom)} terms")
-        for k in builtin:
+        kw_list, pts = config.KEYWORD_TIERS[tier]
+        print(f"\n{TIER_LABELS[tier]} ({pts:+d} points each) — {len(kw_list)} terms")
+        for k in kw_list:
             print(f"    {k}")
-        for k in custom:
-            print(f"    {k}  (custom)")
-    print(f"\nRelevance threshold: {config.RELEVANCE_THRESHOLD}+ points = relevant.")
-    if not any(config.CUSTOM_KEYWORDS.values()):
-        print("\nNo custom keywords yet. Add one with:")
-        print('    python main.py add-keyword "your term" high')
-    print()
+    print(f"\nRelevance threshold: {config.RELEVANCE_THRESHOLD}+ points = relevant.\n")
 
 
 def _split_terms(raw):
