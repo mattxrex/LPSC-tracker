@@ -85,50 +85,91 @@ def print_keywords():
     print()
 
 
-def add_keyword(term, tier_input):
-    """Add a custom keyword to a tier. Returns True on success."""
-    term = (term or "").strip()
-    if not term:
-        print("ERROR: keyword text is empty.")
-        return False
+def _split_terms(raw):
+    """Split a comma-separated input into a clean list of individual terms."""
+    return [t.strip() for t in (raw or "").split(",") if t.strip()]
 
+
+def add_keyword(terms_input, tier_input):
+    """
+    Add one or more (comma-separated) custom keywords to a single tier.
+
+    Returns True if at least one keyword was added.
+    """
     tier = TIER_ALIASES.get((tier_input or "").strip().lower())
     if tier is None:
         print(f"ERROR: unknown weight '{tier_input}'. Use: high, medium, or exclude.")
         return False
 
-    existing = _find_existing_tier(term)
-    if existing is not None:
-        where = "custom" if term.lower() in {k.lower() for k in config.CUSTOM_KEYWORDS[existing]} else "built-in"
-        print(f"'{term}' is already a {where} keyword in the {TIER_LABELS[existing]} tier — no change.")
+    terms = _split_terms(terms_input)
+    if not terms:
+        print("ERROR: no keyword text provided.")
+        return False
+
+    # All keywords currently known (built-in + custom), case-insensitive.
+    known = set()
+    for _kw_list, _pts in config.KEYWORD_TIERS.values():
+        known |= {k.lower() for k in _kw_list}
+
+    custom = _load()
+    added, skipped = [], []
+    for term in terms:
+        if term.lower() in known:
+            skipped.append(term)
+            continue
+        custom[tier].append(term)
+        known.add(term.lower())   # guard against duplicates within the same input
+        added.append(term)
+
+    if added:
+        _save(custom)
+        print(f"Added {len(added)} keyword(s) to {TIER_LABELS[tier]} "
+              f"({_points(tier):+d} points): " + ", ".join(f"'{t}'" for t in added))
+        print("They will be used on the next check.")
+    if skipped:
+        print(f"Skipped {len(skipped)} already-existing: "
+              + ", ".join(f"'{t}'" for t in skipped))
+    return bool(added)
+
+
+def remove_keyword(terms_input):
+    """
+    Remove one or more (comma-separated) custom keywords.
+
+    Built-in keywords can't be removed here. Returns True if at least one
+    keyword was removed.
+    """
+    terms = _split_terms(terms_input)
+    if not terms:
+        print("ERROR: no keyword text provided.")
         return False
 
     custom = _load()
-    custom[tier].append(term)
-    _save(custom)
-    print(f"Added '{term}' to {TIER_LABELS[tier]} ({_points(tier):+d} points).")
-    print("It will be used on the next check.")
-    return True
-
-
-def remove_keyword(term):
-    """Remove a custom keyword. Built-in keywords can't be removed here. Returns bool."""
-    term = (term or "").strip()
-    term_l = term.lower()
-    custom = _load()
-
-    for tier in custom:
-        match = next((k for k in custom[tier] if k.lower() == term_l), None)
+    removed, builtin, missing = [], [], []
+    for term in terms:
+        term_l = term.lower()
+        match = None
+        for tier in custom:
+            match = next((k for k in custom[tier] if k.lower() == term_l), None)
+            if match:
+                custom[tier].remove(match)
+                removed.append(match)
+                break
         if match:
-            custom[tier].remove(match)
-            _save(custom)
-            print(f"Removed custom keyword '{match}' from {TIER_LABELS[tier]}.")
-            return True
+            continue
+        # Not a custom keyword — categorize why we won't touch it.
+        if _find_existing_tier(term) is not None:
+            builtin.append(term)
+        else:
+            missing.append(term)
 
-    # Not a custom keyword — explain why we won't touch it.
-    if _find_existing_tier(term) is not None:
-        print(f"'{term}' is a built-in keyword and can't be removed with this command.")
-        print("Edit lpsc_monitor/config.py to change the built-in lists.")
-    else:
-        print(f"'{term}' is not in your custom keywords.")
-    return False
+    if removed:
+        _save(custom)
+        print(f"Removed {len(removed)} custom keyword(s): "
+              + ", ".join(f"'{t}'" for t in removed))
+    if builtin:
+        print("Refused (built-in — edit lpsc_monitor/config.py to change): "
+              + ", ".join(f"'{t}'" for t in builtin))
+    if missing:
+        print("Not in your custom keywords: " + ", ".join(f"'{t}'" for t in missing))
+    return bool(removed)

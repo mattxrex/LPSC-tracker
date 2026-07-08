@@ -302,13 +302,15 @@ Usage:
         Show the keyword lists used for relevance scoring, with their
         point weights. Custom (user-added) keywords are marked.
 
-    python main.py add-keyword "<term>" <high|medium|exclude>
-        Add a keyword to a weight tier (high +10, medium +3, exclude -15).
-        Example: python main.py add-keyword "data center" high
+    python main.py add-keyword "<term>[, <term>...]" <high|medium|exclude>
+        Add one or more comma-separated keywords to a weight tier
+        (high +10, medium +3, exclude -15).
+        Example: python main.py add-keyword "data center, microgrid, hydrogen" high
 
-    python main.py remove-keyword "<term>"
-        Remove a keyword you previously added (built-ins can't be removed here).
-        Example: python main.py remove-keyword "data center"
+    python main.py remove-keyword "<term>[, <term>...]"
+        Remove one or more keywords you previously added (built-ins can't be
+        removed here).
+        Example: python main.py remove-keyword "data center, microgrid"
 
     python main.py test <pdf_path>
         Test parsing a local PDF file without saving to database.
