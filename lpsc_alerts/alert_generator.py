@@ -65,6 +65,27 @@ def _format_filing_date(raw) -> str:
     return f"{d:%B} {d.day}, {d.year}"
 
 
+def _docket_caption_line(item: Dict) -> str:
+    """
+    Build a short, muted caption shown next to a docket number, e.g.
+    'Entergy Louisiana, LLC, ex parte. Formula Rate Plan annual monitoring.'
+
+    Combines the docket's Description (party/caption) and Synopsis (subject).
+    Returns '' when neither is available, so the header just shows the number.
+    """
+    caption = (item.get('docket_caption') or '').strip()
+    synopsis = (item.get('docket_synopsis') or '').strip()
+    parts = [p for p in (caption, synopsis) if p]
+    if not parts:
+        return ''
+    text = ' '.join(parts)
+    # Keep it a short label — trim overly long synopses at a word boundary.
+    if len(text) > 160:
+        text = text[:160].rsplit(' ', 1)[0] + '…'
+    return (f' <span style="font-size: 12px; color: #718096;">'
+            f'&mdash; {html_mod.escape(text)}</span>')
+
+
 def _docket_portal_link(docket_number: str) -> str:
     """Build a link to the LPSC portal homepage.
 
@@ -97,9 +118,12 @@ def _render_docket_updates(docket_alerts: List[Dict]) -> List[str]:
         docket_url = items[0].get('docket_url', '') if items else ''
         portal_link = docket_url or _docket_portal_link(docket_num)
 
+        # Short docket-level caption (party + what it's about), if we have one
+        caption = _docket_caption_line(items[0] if items else {})
+
         html_parts.append(f"""
     <div style="margin-bottom: 16px; padding: 12px; background: #f7fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
-      <strong style="color: #333; font-size: 14px;">{html_mod.escape(docket_num)}</strong>
+      <strong style="color: #333; font-size: 14px;">{html_mod.escape(docket_num)}</strong>{caption}
       <br>
       <a href="{portal_link}" style="font-size: 12px; color: #2b6cb0; text-decoration: none;">
         View docket on LPSC website &rarr;</a>

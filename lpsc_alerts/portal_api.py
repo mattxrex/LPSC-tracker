@@ -10,6 +10,7 @@ The Document Search API requires:
 """
 
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import List, Dict
 
@@ -104,6 +105,49 @@ def get_document_details_url(order_id) -> str:
 def get_docket_details_url(matter_id) -> str:
     """Build a DocketDetails URL from a MatterId."""
     return f"{LPSC_PORTAL_URL}/PSC/DocketDetails?docketId={matter_id}"
+
+
+def get_docket_caption(session: requests.Session, matter_id) -> Dict:
+    """
+    Fetch a short, docket-level caption from the DocketDetails page.
+
+    The document search API only returns per-document fields, but the
+    DocketDetails page exposes docket-level 'Description' (the caption, e.g.
+    'Entergy Louisiana, LLC, ex parte.') and 'Synopsis' (what the docket is
+    about). We scrape those to label the docket in alert emails.
+
+    Returns {'description': str, 'synopsis': str}; blanks on any failure so
+    callers can degrade gracefully to just the docket number.
+    """
+    result = {'description': '', 'synopsis': ''}
+    if not matter_id:
+        return result
+
+    try:
+        resp = session.get(get_docket_details_url(matter_id), timeout=30)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        log(f"Could not fetch docket caption for matter {matter_id}: {e}")
+        return result
+
+    # The details block renders as a flat list of label / value lines.
+    lines = [ln.strip() for ln in
+             BeautifulSoup(resp.text, 'html.parser').get_text('\n', strip=True).split('\n')
+             if ln.strip()]
+
+    def value_after(label: str) -> str:
+        # First occurrence is the docket-level field (details block renders
+        # before the Documents table that reuses some of the same labels).
+        for i, ln in enumerate(lines):
+            if ln == label and i + 1 < len(lines):
+                return lines[i + 1].strip()
+        return ''
+
+    result['description'] = value_after('Description')
+    synopsis = value_after('Synopsis')
+    if synopsis.lower() != 'none':
+        result['synopsis'] = synopsis
+    return result
 
 
 def extract_matter_id(document: Dict, docket_number: str) -> str:
