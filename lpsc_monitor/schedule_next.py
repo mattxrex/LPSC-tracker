@@ -1,25 +1,30 @@
 """
-Launchd Schedule Updater for LPSC Bulletin Monitor
+Launchd Schedule for LPSC Bulletin Monitor
 
-After each successful bulletin check, this script reads the next bulletin
-date from the database and updates the macOS launchd plist to run on that
-date (at 6 AM).
+Installs a macOS launchd plist that runs `python main.py check` periodically.
+
+This used to reschedule itself after every run, aiming the launchd job at the
+next expected bulletin date. That was fragile: the job fired on a single
+calendar date and had to successfully re-arm itself each time, so one run that
+found nothing (or crashed) left the schedule stuck in the past with no future
+trigger — which is exactly how the monitor silently stopped for months.
+
+Now it runs on a simple interval instead (like lpsc_alerts). The check is cheap
+and skips anything already processed, so running a few times a day whenever the
+Mac is on is both robust and self-correcting — there is nothing to re-arm.
 
 How macOS launchd works:
 - A .plist file in ~/Library/LaunchAgents/ tells macOS when to run a script
-- The StartCalendarInterval key sets the day/time to run
-- After updating the plist, we unload and reload it so macOS picks up the change
-
-This script is called automatically at the end of a successful `check` run.
+- StartInterval runs the job every N seconds the machine is powered on, and
+  launchd runs a missed interval as soon as the Mac wakes from sleep
+- RunAtLoad also runs it once right after login/boot (and on install)
 """
 
 import plistlib
 import subprocess
-from datetime import datetime
 from pathlib import Path
 
 from config import log
-import database as db
 
 # Where the plist lives once installed
 PLIST_NAME = "com.lpsc-monitor.check.plist"
@@ -28,64 +33,19 @@ PLIST_INSTALL_PATH = Path.home() / "Library" / "LaunchAgents" / PLIST_NAME
 # The plist template lives alongside this script
 PLIST_TEMPLATE_PATH = Path(__file__).parent / PLIST_NAME
 
+# How often to run the check while the Mac is powered on (seconds).
+CHECK_INTERVAL_SECONDS = 6 * 60 * 60  # every 6 hours
+
 
 def update_schedule():
     """
-    Read the next bulletin date from the database and update the launchd
-    schedule to run on that date at 6 PM.
+    Kept for backward compatibility with callers (e.g. `main.py check`).
 
-    If the plist is installed, it will be unloaded and reloaded with the
-    new schedule. If not installed, prints a reminder to run setup-schedule.
+    With the interval-based schedule there is nothing to re-arm after a run —
+    launchd keeps firing on its own — so this is intentionally a no-op beyond a
+    short log line. The scheduling itself is installed once by setup_schedule().
     """
-    db.init_database()
-
-    # Get the latest bulletin's next_bulletin_date
-    all_bulletins = db.get_all_bulletins()
-    if not all_bulletins:
-        log("No bulletins in database, can't update schedule")
-        return
-
-    latest = all_bulletins[0]
-    next_date_str = latest.get('next_bulletin_date')
-
-    if not next_date_str:
-        print("No next bulletin date available — schedule not updated")
-        return
-
-    # Parse the date
-    try:
-        next_date = datetime.strptime(next_date_str, "%Y-%m-%d")
-    except ValueError:
-        print(f"ERROR: Could not parse next bulletin date: {next_date_str}")
-        return
-
-    print(f"Next bulletin date: {next_date_str}")
-    print(f"Scheduling check for: {next_date.strftime('%A, %B %d, %Y')} at 6:00 AM")
-
-    if not PLIST_INSTALL_PATH.exists():
-        print(f"NOTE: Launchd plist not installed. Run 'python main.py setup-schedule' first.")
-        return
-
-    # Read the current plist
-    with open(PLIST_INSTALL_PATH, 'rb') as f:
-        plist = plistlib.load(f)
-
-    # Update the StartCalendarInterval to the next bulletin date at 6 PM
-    plist['StartCalendarInterval'] = {
-        'Month': next_date.month,
-        'Day': next_date.day,
-        'Hour': 6,
-        'Minute': 0,
-    }
-
-    # Write the updated plist
-    with open(PLIST_INSTALL_PATH, 'wb') as f:
-        plistlib.dump(plist, f)
-
-    # Reload the launchd job so macOS picks up the new schedule
-    _reload_launchd()
-
-    print("Schedule updated successfully.")
+    print("Periodic schedule active — no per-run rescheduling needed.")
 
 
 def _reload_launchd():
@@ -129,8 +89,7 @@ def create_plist():
     Create the launchd plist file from scratch.
 
     This generates a plist that runs `python main.py check` using the
-    project's virtual environment Python. It starts with a default
-    schedule that gets updated after the first successful run.
+    project's virtual environment Python on a fixed interval.
     """
     # Use the venv's Python interpreter
     venv_python = Path(__file__).parent / "venv" / "bin" / "python"
@@ -146,13 +105,8 @@ def create_plist():
             'check',
         ],
         'WorkingDirectory': working_dir,
-        'StartCalendarInterval': {
-            # Default: run every other Friday at 6 PM
-            # This gets updated after each successful check
-            'Weekday': 5,  # Friday
-            'Hour': 6,
-            'Minute': 0,
-        },
+        'StartInterval': CHECK_INTERVAL_SECONDS,
+        'RunAtLoad': True,
         'StandardOutPath': log_path,
         'StandardErrorPath': log_path,
         'EnvironmentVariables': {
@@ -187,18 +141,9 @@ def setup_schedule():
     # Load it
     _reload_launchd()
 
+    hours = CHECK_INTERVAL_SECONDS // 3600
     print(f"\nScheduled check is now active.")
+    print(f"Schedule: every {hours} hours while the Mac is on (plus on login/wake)")
     print(f"Log output will go to: {plist['StandardOutPath']}")
-
-    # Try to set the initial schedule from the database
-    all_bulletins = db.get_all_bulletins()
-    if all_bulletins and all_bulletins[0].get('next_bulletin_date'):
-        next_date = all_bulletins[0]['next_bulletin_date']
-        print(f"\nNext check scheduled for: {next_date} at 6:00 AM")
-        update_schedule()
-    else:
-        print("\nNo next bulletin date in database yet.")
-        print("Default: will check every Friday at 6 AM.")
-        print("The schedule will auto-update after the first successful check.")
 
     print("\nTo uninstall: launchctl unload ~/Library/LaunchAgents/com.lpsc-monitor.check.plist")

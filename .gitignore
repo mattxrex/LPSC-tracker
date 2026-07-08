@@ -7,7 +7,15 @@
 # Downloaded PDFs (temporary, cleaned up after processing)
 lpsc_monitor/data/bulletins/
 lpsc_monitor/data/documents/
+lpsc_monitor/data/agendas/
 lpsc_alerts/data/bulletins/
+
+# Runtime logs and state (regenerated on each run)
+lpsc_monitor/data/*.log
+lpsc_alerts/data/*.log
+lpsc_monitor/data/last_success.txt
+lpsc_alerts/data/last_success.txt
+lpsc_monitor/data/*.html
 
 # Virtual environment
 lpsc_monitor/venv/

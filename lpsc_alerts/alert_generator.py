@@ -6,9 +6,84 @@ Groups keyword matches and docket updates into a single email per user.
 """
 
 import html as html_mod
+import re
 
-from typing import List, Dict
+from datetime import datetime, date, timezone
+from typing import List, Dict, Optional
 from config import LPSC_PORTAL_URL, SUBPART_SECTIONS, log
+
+# The LPSC portal returns filing dates in a couple of shapes. Handle both.
+_MS_DATE_RE = re.compile(r"/Date\((-?\d+)")
+
+# LPSC filings are stamped in U.S. Central time. Convert to that zone so the
+# calendar date is right year-round; fall back to UTC if tz data is missing.
+try:
+    from zoneinfo import ZoneInfo
+    _CENTRAL = ZoneInfo("America/Chicago")
+except Exception:  # pragma: no cover — only if system tz data is unavailable
+    _CENTRAL = timezone.utc
+
+
+def _parse_filing_date(raw) -> Optional[date]:
+    """
+    Parse an LPSC 'DateFiled' value into a date, or None if unparseable.
+
+    The portal returns either Microsoft/ASP.NET JSON, e.g.
+    '/Date(1782450000000)/' (milliseconds since the Unix epoch, UTC), or
+    occasionally a plain 'M/D/YYYY' / 'YYYY-MM-DD' string.
+    """
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+
+    text = str(raw)
+    m = _MS_DATE_RE.search(text)
+    if m:
+        try:
+            dt = datetime.fromtimestamp(int(m.group(1)) / 1000, tz=timezone.utc)
+            return dt.astimezone(_CENTRAL).date()
+        except (ValueError, OverflowError, OSError):
+            return None
+
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text.strip(), fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _format_filing_date(raw) -> str:
+    """Render an LPSC 'DateFiled' value as e.g. 'June 26, 2026'."""
+    d = _parse_filing_date(raw)
+    if d is None:
+        # Show the original text rather than a machine token if we can't parse it
+        return str(raw) if raw else "Date unknown"
+    return f"{d:%B} {d.day}, {d.year}"
+
+
+def _docket_caption_line(item: Dict) -> str:
+    """
+    Build a short, muted caption shown next to a docket number, e.g.
+    'Entergy Louisiana, LLC, ex parte. Formula Rate Plan annual monitoring.'
+
+    Combines the docket's Description (party/caption) and Synopsis (subject).
+    Returns '' when neither is available, so the header just shows the number.
+    """
+    caption = (item.get('docket_caption') or '').strip()
+    synopsis = (item.get('docket_synopsis') or '').strip()
+    parts = [p for p in (caption, synopsis) if p]
+    if not parts:
+        return ''
+    text = ' '.join(parts)
+    # Keep it a short label — trim overly long synopses at a word boundary.
+    if len(text) > 160:
+        text = text[:160].rsplit(' ', 1)[0] + '…'
+    return (f' <span style="font-size: 12px; color: #718096;">'
+            f'&mdash; {html_mod.escape(text)}</span>')
 
 
 def _docket_portal_link(docket_number: str) -> str:
@@ -43,27 +118,30 @@ def _render_docket_updates(docket_alerts: List[Dict]) -> List[str]:
         docket_url = items[0].get('docket_url', '') if items else ''
         portal_link = docket_url or _docket_portal_link(docket_num)
 
+        # Short docket-level caption (party + what it's about), if we have one
+        caption = _docket_caption_line(items[0] if items else {})
+
         html_parts.append(f"""
     <div style="margin-bottom: 16px; padding: 12px; background: #f7fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
-      <strong style="color: #333; font-size: 14px;">{html_mod.escape(docket_num)}</strong>
+      <strong style="color: #333; font-size: 14px;">{html_mod.escape(docket_num)}</strong>{caption}
       <br>
       <a href="{portal_link}" style="font-size: 12px; color: #2b6cb0; text-decoration: none;">
         View docket on LPSC website &rarr;</a>
 """)
-        # Group by filing date within this docket
+        # Group by filing date within this docket. Parse to a real date so we
+        # can both sort correctly and display a readable label.
         by_date = {}
         for item in items:
-            date = item.get('date_filed', 'Unknown date')
-            if date not in by_date:
-                by_date[date] = []
-            by_date[date].append(item)
+            d = _parse_filing_date(item.get('date_filed'))
+            by_date.setdefault(d, []).append(item)
 
-        # Sort dates in reverse chronological order
-        for date in sorted(by_date.keys(), reverse=True):
-            date_items = by_date[date]
+        # Sort newest-first; any unparseable dates (None) sort to the end.
+        for d in sorted(by_date.keys(), key=lambda x: x or date.min, reverse=True):
+            date_items = by_date[d]
+            date_label = f"{d:%B} {d.day}, {d.year}" if d else "Date unknown"
             html_parts.append(f"""
       <div style="margin: 8px 0 4px 8px; font-size: 13px; color: #4a5568; font-weight: 600;">
-        {html_mod.escape(date)}
+        {html_mod.escape(date_label)}
       </div>
       <ul style="list-style: none; padding: 0; margin: 0 0 0 8px;">
 """)
@@ -343,19 +421,19 @@ def generate_user_notification_email(user: Dict, dockets: List[str],
       <a href="{portal_link}" style="font-size: 12px; color: #2b6cb0; text-decoration: none;">
         View docket on LPSC website &rarr;</a>
 """)
-                # Group docs by filing date within this docket
+                # Group docs by filing date within this docket (parsed so we
+                # can sort correctly and show a readable label).
                 by_date = {}
                 for doc in info['docs']:
-                    date = doc.get('date_filed', 'Unknown date')
-                    if date not in by_date:
-                        by_date[date] = []
-                    by_date[date].append(doc)
+                    d = _parse_filing_date(doc.get('date_filed'))
+                    by_date.setdefault(d, []).append(doc)
 
-                for date in sorted(by_date.keys(), reverse=True):
-                    date_items = by_date[date]
+                for d in sorted(by_date.keys(), key=lambda x: x or date.min, reverse=True):
+                    date_items = by_date[d]
+                    date_label = f"{d:%B} {d.day}, {d.year}" if d else "Date unknown"
                     html_parts.append(f"""
       <div style="margin: 8px 0 4px 8px; font-size: 13px; color: #4a5568; font-weight: 600;">
-        {html_mod.escape(date)}
+        {html_mod.escape(date_label)}
       </div>
       <ul style="list-style: none; padding: 0; margin: 0 0 0 8px;">
 """)

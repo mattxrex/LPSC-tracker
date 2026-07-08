@@ -17,7 +17,7 @@ from config import DOCKET_DOCUMENT_LOOKBACK_DAYS, log
 import database as db
 from portal_api import (create_session, search_docket_documents,
                         get_document_details_url, get_docket_details_url,
-                        extract_matter_id)
+                        extract_matter_id, get_docket_caption)
 
 
 def check_tracked_dockets() -> List[Dict]:
@@ -91,6 +91,9 @@ def check_tracked_dockets() -> List[Dict]:
         matter_id = extract_matter_id(documents[0], docket_number)
         docket_url = get_docket_details_url(matter_id) if matter_id else ''
 
+        # Fetch a short docket-level caption once (party + what it's about)
+        caption = get_docket_caption(session, matter_id)
+
         for doc in documents:
             order_id = str(doc.get('OrderId', ''))
             description = doc.get('Description', '')
@@ -115,6 +118,8 @@ def check_tracked_dockets() -> List[Dict]:
                     'alert_type': 'docket_update',
                     'docket_number': docket_number,
                     'docket_url': docket_url,
+                    'docket_caption': caption['description'],
+                    'docket_synopsis': caption['synopsis'],
                     'document_id': order_id,
                     'document_description': description,
                     'document_type': doc_type,
