@@ -18,8 +18,8 @@ This repo contains two tools:
 
 ```bash
 # Clone the repo
-git clone https://github.com/mattxrex/lpsc-track.git
-cd lpsc-track
+git clone https://github.com/mattxrex/LPSC-tracker.git
+cd LPSC-tracker
 
 # Create and activate virtual environment
 python3 -m venv lpsc_monitor/venv
@@ -144,13 +144,20 @@ python main.py monitor
 # Test that email delivery works
 python main.py test-alert your.email@example.com
 
-# Automatic scheduling (macOS only) — runs check daily at 6 AM
+# Automatic scheduling (macOS only) — runs check every ~6 hours
 python main.py setup-schedule
 ```
 
 The `check` command runs both monitoring paths, groups all alerts by user, sends one email per user, and records what was sent so the same item is never alerted twice.
 
-The `setup-schedule` command installs a macOS launchd job that runs `check` automatically every day at 6 AM. Unlike lpsc_monitor (which dynamically schedules based on the next bulletin date), lpsc_alerts uses a fixed daily schedule because it also monitors tracked dockets for new filings between bulletins.
+The `setup-schedule` command installs a macOS launchd job that runs `check` automatically **every ~6 hours** while the Mac is on (plus once shortly after login, and it catches up a missed run when the Mac wakes from sleep). A time-based interval is used — rather than one fixed clock time — so a laptop that's asleep or off at any given moment still gets checked whenever it's next on. Both tools use this same interval schedule.
+
+### Reliability
+
+Both tools are built to fail loudly rather than silently:
+
+- **Network timeouts** on every request, so a stalled connection can't freeze a scheduled run indefinitely.
+- **Heartbeat safeguard** — each successful check is recorded, and if a check ever crashes or none has succeeded in several days, an alert email is sent to `EMAIL_ADMIN` so a breakage surfaces instead of going unnoticed.
 
 ### Architecture
 
@@ -168,7 +175,8 @@ lpsc_alerts/
 ├── email_sender.py      # Gmail SMTP delivery
 ├── bulletin_parser.py   # PDF parsing (shared with lpsc_monitor)
 ├── bulletin_downloader.py # PDF download (shared with lpsc_monitor)
-├── schedule.py          # macOS launchd scheduling (daily at 6 AM)
+├── schedule.py          # macOS launchd scheduling (every ~6 hours + on login/wake)
+├── heartbeat.py         # Records successful checks; emails admin on failure/staleness
 └── data/
     └── lpsc_alerts.db   # SQLite database (created automatically, gitignored)
 ```
@@ -188,7 +196,7 @@ A comprehensive monitoring tool for a single user (or a fixed recipient list). G
 5. **Fetches** supporting documents from the LPSC portal for relevant dockets
 6. **Summarizes** each document using Claude AI (Haiku) with structured output
 7. **Emails** an HTML report organized by bulletin section with document summaries and portal links
-8. **Schedules** the next check based on the bulletin's published next-mailing date (macOS launchd)
+8. **Runs automatically** every ~6 hours via macOS launchd (see Reliability above); new bulletins are processed on whichever run first sees them
 
 ### Usage
 
